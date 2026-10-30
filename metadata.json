@@ -1,0 +1,8 @@
+{
+  "name": "Remix Hobbi — Find Your Kind of Connection",
+  "description": "Dating platform connecting intentional singles through shared hobbies and a 21-day consistency challenge.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
