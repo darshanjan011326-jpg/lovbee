@@ -5,6 +5,19 @@ const STORAGE_KEY_KEY = 'lovbee_supabase_anon_key';
 const LEGACY_STORAGE_KEY_URL = 'hobbi_supabase_url';
 const LEGACY_STORAGE_KEY_KEY = 'hobbi_supabase_anon_key';
 
+function isPlaceholder(val: string): boolean {
+  if (!val) return true;
+  const lower = val.toLowerCase().trim();
+  return (
+    lower.includes('placeholder') ||
+    lower.includes('your-project') ||
+    lower.includes('un_publishable') ||
+    lower.includes('your_anon_key') ||
+    lower.includes('your-anon-key') ||
+    lower === 'un_publishable_key_here'
+  );
+}
+
 export function getSupabaseConfig(): { url: string; key: string; isLive: boolean } {
   const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
   const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -17,15 +30,22 @@ export function getSupabaseConfig(): { url: string; key: string; isLive: boolean
     localKey = (localStorage.getItem(STORAGE_KEY_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY_KEY) || '').trim();
   }
 
-  const url = localUrl || envUrl;
-  const key = localKey || envKey;
+  const rawUrl = localUrl || envUrl;
+  const rawKey = localKey || envKey;
 
-  const isLive = Boolean(url && key && url.startsWith('http'));
+  const url = isPlaceholder(rawUrl) ? '' : rawUrl;
+  const key = isPlaceholder(rawKey) ? '' : rawKey;
+
+  const isLive = Boolean(url && key && url.startsWith('http') && !isPlaceholder(url) && !isPlaceholder(key));
 
   return { url, key, isLive };
 }
 
 export function saveSupabaseConfig(url: string, key: string): void {
+  cachedClient = null;
+  lastUrl = '';
+  lastKey = '';
+
   if (typeof window !== 'undefined') {
     if (url && key) {
       localStorage.setItem(STORAGE_KEY_URL, url.trim());
@@ -68,26 +88,95 @@ export function getSupabase(): SupabaseClient | null {
   }
 }
 
+/**
+ * Direct initialized Supabase client instance (or null if unconfigured).
+ */
+export const supabase = getSupabase();
+
 export async function testSupabaseConnection(
-  url: string,
-  key: string
-): Promise<{ success: boolean; message: string }> {
+  url?: string,
+  key?: string
+): Promise<{ success: boolean; message: string; tablesExist?: boolean }> {
   try {
-    const testClient = createClient(url, key);
-    // Simple ping to check if client can reach Supabase
-    const { error } = await testClient.from('hobbies').select('count', { count: 'exact', head: true });
-    if (error && error.code !== 'PGRST116' && !error.message.includes('permission')) {
-      if (error.message.includes('does not exist')) {
-        return {
-          success: true,
-          message: 'Connected to Supabase! (Database tables need migration via supabase_schema.sql)',
-        };
-      }
-      return { success: false, message: error.message };
+    const config = getSupabaseConfig();
+    const targetUrl = (url !== undefined ? url : config.url).trim();
+    const targetKey = (key !== undefined ? key : config.key).trim();
+
+    if (!targetUrl || !targetKey) {
+      return { success: false, message: 'Supabase URL and Anon Key are required.' };
     }
-    return { success: true, message: 'Successfully connected and verified against Supabase database!' };
+
+    if (!targetUrl.startsWith('http')) {
+      return { success: false, message: 'Invalid Supabase URL: must start with https://' };
+    }
+
+    if (isPlaceholder(targetUrl) || isPlaceholder(targetKey)) {
+      return { success: false, message: 'Supabase configuration contains unconfigured placeholder values.' };
+    }
+
+    const testClient = createClient(targetUrl, targetKey);
+    const { error, status } = await testClient.from('profiles').select('id').limit(1);
+
+    if (!error) {
+      return {
+        success: true,
+        message: 'Successfully connected and verified against Supabase database!',
+        tablesExist: true,
+      };
+    }
+
+    const isTableMissing =
+      error.code === 'PGRST205' ||
+      error.code === '42P01' ||
+      error.message?.includes('schema cache') ||
+      error.message?.includes('does not exist');
+
+    if (isTableMissing) {
+      return {
+        success: true,
+        message: 'Connected to Supabase! (Database tables need migration via supabase_schema.sql)',
+        tablesExist: false,
+      };
+    }
+
+    const isPermission =
+      error.code === '42501' ||
+      error.code === 'PGRST116' ||
+      error.message?.toLowerCase().includes('permission denied');
+
+    if (isPermission) {
+      return {
+        success: true,
+        message: 'Successfully connected to Supabase with RLS active!',
+        tablesExist: true,
+      };
+    }
+
+    const isAuthError =
+      status === 401 ||
+      error.message?.toLowerCase().includes('invalid api key') ||
+      error.message?.toLowerCase().includes('jwt') ||
+      error.code === 'PGRST301';
+
+    if (isAuthError) {
+      return {
+        success: false,
+        message: 'Invalid Supabase Anon Key. Please check your credentials.',
+        tablesExist: false,
+      };
+    }
+
+    return {
+      success: false,
+      message: error.message || 'Database error connecting to Supabase.',
+      tablesExist: false,
+    };
   } catch (err: any) {
-    return { success: false, message: err?.message || 'Network error connecting to Supabase.' };
+    return {
+      success: false,
+      message: err?.message || 'Network error connecting to Supabase. Check URL and connection.',
+      tablesExist: false,
+    };
   }
 }
 

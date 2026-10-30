@@ -32,6 +32,8 @@ import { BlockModal, ReportModal } from './components/SafetyModals';
 import { LovbeeLogo } from './components/LovbeeLogo';
 import { CheckinCelebrationModal } from './components/CheckinCelebrationModal';
 import { getSupabaseConfig } from './services/supabase';
+import { GeminiModal } from './components/GeminiModal';
+import { isGeminiConfigured } from './services/gemini';
 
 export default function App() {
   const [, setTick] = useState(0);
@@ -52,6 +54,7 @@ export default function App() {
 
   const [selectedChatConnectionId, setSelectedChatConnectionId] = useState<string | undefined>(undefined);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
   const [legalModalType, setLegalModalType] = useState<'terms' | 'privacy' | null>(null);
   const [isAgeGateModalOpen, setIsAgeGateModalOpen] = useState(false);
   const [blockedAge, setBlockedAge] = useState<number | undefined>(undefined);
@@ -207,6 +210,7 @@ export default function App() {
             selectedConnectionId={selectedChatConnectionId}
             onOpenBlockModal={setBlockTarget}
             onOpenReportModal={setReportTarget}
+            onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
           />
         )}
 
@@ -243,6 +247,7 @@ export default function App() {
           <SettingsView
             currentUser={currentUser}
             onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
+            onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
             onLogout={() => {
               store.logout();
               setActiveTab(isUnlocked ? 'discover' : 'challenge');
@@ -446,6 +451,11 @@ export default function App() {
         onClose={() => setIsSupabaseModalOpen(false)}
       />
 
+      <GeminiModal
+        isOpen={isGeminiModalOpen}
+        onClose={() => setIsGeminiModalOpen(false)}
+      />
+
       <LegalModal
         type={legalModalType}
         onClose={() => setLegalModalType(null)}
@@ -505,6 +515,14 @@ export default function App() {
             >
               <Database className="w-3 h-3" />
               <span>{isLive ? 'Supabase Connected' : isDemo ? 'Demo Mode' : 'Live Community'}</span>
+            </button>
+            <span aria-hidden="true" className="text-stone-600">·</span>
+            <button
+              onClick={() => setIsGeminiModalOpen(true)}
+              className="text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              <span>{isGeminiConfigured() ? 'Gemini AI Ready' : 'Connect Gemini AI'}</span>
             </button>
           </div>
         </div>

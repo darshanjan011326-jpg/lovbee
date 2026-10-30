@@ -15,12 +15,14 @@ import {
 import { Connection, Message, Profile } from '../types';
 import { Avatar } from './Avatar';
 import { store } from '../services/store';
+import { generateIcebreakers, isGeminiConfigured } from '../services/gemini';
 
 interface MessagesViewProps {
   currentUser: Profile;
   selectedConnectionId?: string;
   onOpenReportModal: (target: Profile) => void;
   onOpenBlockModal: (target: Profile) => void;
+  onOpenGeminiModal?: () => void;
 }
 
 export const MessagesView: React.FC<MessagesViewProps> = ({
@@ -28,6 +30,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   selectedConnectionId,
   onOpenReportModal,
   onOpenBlockModal,
+  onOpenGeminiModal,
 }) => {
   const connections = store.getConnections();
   const [activeConnectionId, setActiveConnectionId] = useState<string>(
@@ -35,6 +38,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   );
   const [inputContent, setInputContent] = useState('');
   const [mobileDetailOpen, setMobileDetailOpen] = useState<boolean>(Boolean(selectedConnectionId));
+  const [aiLoading, setAiLoading] = useState(false);
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<string[] | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,13 +71,34 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     store.sendMessage(activeConnectionId, '❤️');
   };
 
-  const promptSuggestions = [
+  const handleGenerateAiIcebreaker = async () => {
+    if (!activeConnection) return;
+    if (!isGeminiConfigured() && onOpenGeminiModal) {
+      onOpenGeminiModal();
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const generated = await generateIcebreakers(activeConnection.partnerProfile, currentUser);
+      setDynamicSuggestions(generated);
+      if (generated.length > 0) {
+        setInputContent(generated[0]);
+      }
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const defaultSuggestions = [
     activeConnection?.partnerProfile.hobbies[0]
       ? `How is your recent practice in ${activeConnection.partnerProfile.hobbies[0].name} going?`
       : 'What ritual anchors your morning routine?',
     'Any favorite vinyl record or book you’ve loved recently?',
     'What drew you to start this craft initially?',
   ];
+
+  const promptSuggestions = dynamicSuggestions || defaultSuggestions;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 h-[calc(100vh-6rem)] min-h-[520px]">
@@ -251,11 +277,18 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             </div>
 
             {/* Icebreaker suggestions */}
-            {messages.length <= 2 && (
+            {messages.length <= 4 && (
               <div className="px-4 py-2 border-t border-white/5 bg-[#121214] flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <span className="text-[10px] text-stone-400 uppercase font-semibold shrink-0">
-                  Icebreaker:
-                </span>
+                <button
+                  type="button"
+                  onClick={handleGenerateAiIcebreaker}
+                  disabled={aiLoading}
+                  className="px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500/20 to-[#BE123C]/20 border border-amber-500/30 text-[10px] font-semibold text-amber-300 hover:text-white flex items-center gap-1 shrink-0 transition-all cursor-pointer"
+                  title="Generate bespoke icebreaker with Gemini"
+                >
+                  <Sparkles className={`w-3 h-3 ${aiLoading ? 'animate-spin text-amber-400' : 'text-amber-300'}`} />
+                  <span>{aiLoading ? 'Crafting...' : '✨ Gemini Wingman'}</span>
+                </button>
                 {promptSuggestions.map((prompt, i) => (
                   <button
                     key={i}
@@ -278,6 +311,16 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   className="p-2.5 rounded-2xl bg-[#1C1C1E] border border-white/10 hover:border-[#E11D48]/40 text-[#FB7185] hover:scale-105 active:scale-95 transition-all"
                 >
                   <Heart className="w-4 h-4 fill-current" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleGenerateAiIcebreaker}
+                  disabled={aiLoading}
+                  title="Generate icebreaker with Gemini AI"
+                  className="p-2.5 rounded-2xl bg-[#1C1710] border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className={`w-4 h-4 ${aiLoading ? 'animate-spin' : ''}`} />
                 </button>
 
                 <input

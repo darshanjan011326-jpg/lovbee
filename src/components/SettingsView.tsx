@@ -13,16 +13,20 @@ import {
 } from 'lucide-react';
 import { Profile } from '../types';
 import { store } from '../services/store';
+import { isGeminiConfigured } from '../services/gemini';
+import { Sparkles } from 'lucide-react';
 
 interface SettingsViewProps {
   currentUser: Profile;
   onOpenSupabaseModal: () => void;
+  onOpenGeminiModal?: () => void;
   onLogout: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   currentUser,
   onOpenSupabaseModal,
+  onOpenGeminiModal,
   onLogout,
 }) => {
   const [isIncognito, setIsIncognito] = useState(currentUser.isIncognito || false);
@@ -210,6 +214,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#BE123C] via-[#E11D48] to-[#881337] text-white font-semibold transition-all hover:from-[#E11D48] hover:via-[#F43F5E] hover:to-[#BE123C] shrink-0 cursor-pointer shadow-sm"
           >
             <span>Inspect Database</span>
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#1A1410] border border-amber-500/20 text-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-white">Google Gemini AI Engine</p>
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold ${
+                  isGeminiConfigured()
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}
+              >
+                {isGeminiConfigured() ? 'Active (v2.5 Flash)' : 'Key Needed'}
+              </span>
+            </div>
+            <p className="text-stone-400">
+              Powers AI wingman icebreakers in chat, witty profile prompt polishing, and 21-day challenge tips.
+            </p>
+          </div>
+          <button
+            onClick={onOpenGeminiModal}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 via-[#BE123C] to-[#881337] text-white font-semibold transition-all hover:opacity-95 shrink-0 cursor-pointer shadow-sm flex items-center gap-1.5"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+            <span>Configure Gemini AI</span>
           </button>
         </div>
       </div>
